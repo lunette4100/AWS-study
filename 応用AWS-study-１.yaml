@@ -1,6 +1,5 @@
 AWSTemplateFormatVersion: "2010-09-09"
 Description: Cloudformation-study
-#インデントに注意
 
 
 Parameters:
@@ -20,9 +19,6 @@ Parameters:
     NoEcho: true
     Description: RDS master user password
   
-
-
-
 Resources:
  myVPC:
   Type: AWS::EC2::VPC
@@ -41,13 +37,12 @@ Resources:
     Tags:
       - Key: Name
         Value: Cloudformation-study-igw
-       
  AttachGateway: 
-  Type: AWS::EC2::VPCGatewayAttachment
-  Properties:
-   VpcId: !Ref myVPC
-   InternetGatewayId: !Ref myInternetGateway
-
+   Type: AWS::EC2::VPCGatewayAttachment
+   Properties:
+    VpcId: !Ref myVPC
+    InternetGatewayId: !Ref myInternetGateway    
+   
  PublicSubnetA:
   Type: AWS::EC2::Subnet
   Properties:
@@ -68,9 +63,7 @@ Resources:
     Tags:
     - Key: Name
       Value: Cloudformation-study-public-subnet-b
-
-  
-
+ 
  PublicRouteTable:
   Type: AWS::EC2::RouteTable
   Properties:
@@ -80,12 +73,12 @@ Resources:
       Value: Cloudformation-study-public-rt
 
  PublicRoute:
-  Type: AWS::EC2::Route
-  DependsOn: AttachGateway
-  Properties:
-   RouteTableId: !Ref PublicRouteTable
-   DestinationCidrBlock: 0.0.0.0/0
-   GatewayId: !Ref myInternetGateway
+   Type: AWS::EC2::Route
+   DependsOn: AttachGateway
+   Properties:
+    RouteTableId: !Ref PublicRouteTable
+    DestinationCidrBlock: 0.0.0.0/0
+    GatewayId: !Ref myInternetGateway
 
  PublicSubnetRouteTableAssociationA:
   Type: AWS::EC2::SubnetRouteTableAssociation
@@ -99,6 +92,9 @@ Resources:
    SubnetId: !Ref PublicSubnetB
    RouteTableId: !Ref PublicRouteTable
 
+
+
+
  secGroupName1:
   Type: AWS::EC2::SecurityGroup
   Properties:
@@ -109,7 +105,7 @@ Resources:
       - IpProtocol: tcp
         FromPort: 22
         ToPort: 22
-        CidrIp: 153.175.16.24/32
+        CidrIp: 0.0.0.0/0
       - IpProtocol: tcp
         FromPort: 8080
         ToPort: 8080
@@ -142,7 +138,6 @@ Resources:
       - Key: Name
         Value: cloudformation-study-sg2
     
-   
  secGroupName3:
     Type: AWS::EC2::SecurityGroup
     Properties:
@@ -170,12 +165,12 @@ Resources:
     Monitoring: true
     SecurityGroupIds: 
      - !Ref secGroupName1
-    SubnetId: !Ref PublicSubnetA
+    SubnetId: !Ref PrivateSubnetA
 
     Tags:
       - Key: Name
         Value: Cloudformation-study-ec2
-  
+
  PrivateSubnetA:
    Type: AWS::EC2::Subnet
    Properties:
@@ -191,22 +186,80 @@ Resources:
   Properties:
     VpcId: !Ref myVPC
     CidrBlock: 10.0.12.0/24
-    AvailabilityZone: !Select [1, !GetAZs '']
+    AvailabilityZone: !Select [0, !GetAZs '']
     Tags:
        - Key: Name
          Value: Cloudformation-study-private-subnet-B
 
+ PrivateSubnetC:
+  Type: AWS::EC2::Subnet
+  Properties:
+    VpcId: !Ref myVPC
+    CidrBlock: 10.0.13.0/24
+    AvailabilityZone: !Select [1, !GetAZs '']
+    Tags:
+       - Key: Name
+         Value: Cloudformation-study-private-subnet-C
+
+ NGW1EIP:
+  Type: AWS::EC2::EIP
+  Properties:
+    Domain: vpc
  
+ NatGateway:
+  Type: AWS::EC2::NatGateway
+  Properties:
+   SubnetId: !Ref PublicSubnetA
+   AllocationId: !GetAtt NGW1EIP.AllocationId
+   Tags:
+     - Key: Name
+       Value: Cloudformation-study-ngw-fromEC2
+
+ PrivateRouteTableName:
+   Type: AWS::EC2::RouteTable
+   Properties:
+     VpcId: !Ref myVPC
+     Tags: 
+       - Key: Name
+         Value: Cloudformation-study-private-rtn
+
+ PrivateRouteTable:
+   Type: AWS::EC2::Route
+   DependsOn: NatGateway
+   Properties:
+    RouteTableId: !Ref PrivateRouteTableName
+    DestinationCidrBlock: 0.0.0.0/0
+    NatGatewayId: !Ref NatGateway 
+  
+ PrivateSubnetARouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+     SubnetId: !Ref PrivateSubnetA
+     RouteTableId: !Ref PrivateRouteTableName
+ 
+ PrivateSubnetBRouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+     SubnetId: !Ref PrivateSubnetB
+     RouteTableId: !Ref PrivateRouteTableName
+
+ PrivateSubnetCRouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+     SubnetId: !Ref PrivateSubnetC
+     RouteTableId: !Ref PrivateRouteTableName
+
  RdsDBSubnetGroup:
     Type: AWS::RDS::DBSubnetGroup
     Properties:
       DBSubnetGroupDescription: RDS DB Subnet Group
       SubnetIds:
-        - !Ref PrivateSubnetA
         - !Ref PrivateSubnetB
+        - !Ref PrivateSubnetC
       Tags:
         - Key: Name
           Value: rds-db-subnet-group
+
  RDSInstance:
    Type: AWS::RDS::DBInstance
    DependsOn:
@@ -231,22 +284,23 @@ Resources:
     Tags:
       - Key: Name
         Value: Cloudformation-study-rds
+
  ALB:
-    Type: AWS::ElasticLoadBalancingV2::LoadBalancer
-    Properties:
-      Type: "application"
-      Scheme: "internet-facing"
-      Name:  cloudformation-study-alb
-      Tags:
+  Type: AWS::ElasticLoadBalancingV2::LoadBalancer
+  Properties:
+   Type: "application"
+   Scheme: "internet-facing"
+   Name:  cloudformation-study-alb
+
+   IpAddressType: ipv4
+   Subnets:
+      - !Ref PublicSubnetA
+      - !Ref PublicSubnetB
+   SecurityGroups:
+        - !Ref secGroupName3
+   Tags:
         - Key: Name
           Value: Cloudformation-study-alb
-      IpAddressType: ipv4
-      Subnets:
-        - !Ref PublicSubnetA
-        - !Ref PublicSubnetB
-       
-      SecurityGroups:
-        - !Ref secGroupName3
 
  ALBListener:
     Type: AWS::ElasticLoadBalancingV2::Listener
@@ -265,7 +319,7 @@ Resources:
       Port: 8080
       Protocol: HTTP
       Matcher:
-        HttpCode: '200'
+        HttpCode: '200,300,301' 
       VpcId: !Ref myVPC
       TargetType: instance
       Targets:
@@ -274,11 +328,6 @@ Resources:
       Tags:
         - Key: Name
           Value: cloudformation-study-alb-tg
-
-
- 
-
-
 
 Outputs:
  VPCId:
@@ -290,9 +339,6 @@ Outputs:
  EC2InstanceId:
   Description: EC2 Instance ID
   Value: !Ref myEC2Instance
- EC2PublicIP:
-  Description: EC2 Public IP
-  Value: !GetAtt myEC2Instance.PublicIp
  RdsEndpoint:
     Description: RDS endpoint address
     Value: !GetAtt RDSInstance.Endpoint.Address
@@ -305,3 +351,6 @@ Outputs:
         - ""
         - - http://
           - !GetAtt ALB.DNSName
+
+
+
