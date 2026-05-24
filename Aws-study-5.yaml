@@ -18,6 +18,14 @@ Parameters:
     Type: String
     NoEcho: true
     Description: RDS master user password
+ AlarmTopicArn:
+    Type: String
+    Description: SNS topic ARN for CloudWatch Alarm notifications
+ 
+
+Resources:
+ myVPC:
+  Type: AWS::EC2::VPC
   
 
 
@@ -107,7 +115,7 @@ Resources:
       - IpProtocol: tcp
         FromPort: 22
         ToPort: 22
-        CidrIp: 153.175.16.24/32
+        CidrIp: 153.165.123.142/32
       - IpProtocol: tcp
         FromPort: 8080
         ToPort: 8080
@@ -269,7 +277,29 @@ Resources:
         - Key: Name
           Value: cloudformation-study-alb-tg
 
-
+ cloudWatchAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      MetricName: CPUUtilization 
+      Namespace: AWS/EC2 
+      ComparisonOperator: GreaterThanThreshold 
+      EvaluationPeriods: 1 
+      Period: 60 
+      Statistic: Average 
+      Threshold: 50 
+      ActionsEnabled: true 
+      AlarmActions: 
+       - !Ref AlarmTopicArn 
+      AlarmDescription: check for EC2 to CPU 
+      AlarmName: Abnormal
+      Dimensions: 
+      - Name: InstanceId
+        Value: !Ref myEC2Instance 
+      InsufficientDataActions: [] 
+      OKActions:  
+       - !Ref AlarmTopicArn
+      Unit: Percent 
+      
  
 
 
