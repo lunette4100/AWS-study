@@ -217,6 +217,7 @@ Resources:
     VPCSecurityGroups:
       - !Ref secGroupRDS
     DBSubnetGroupName: !Ref RdsDBSubnetGroup
+    PubliclyAccessible: false
     AllocatedStorage: 20   
     MultiAZ: false
     BackupRetentionPeriod: 1
