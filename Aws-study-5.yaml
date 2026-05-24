@@ -19,9 +19,6 @@ Parameters:
     NoEcho: true
     Description: RDS master user password
   
-
-
-
 Resources:
  myVPC:
   Type: AWS::EC2::VPC
@@ -40,13 +37,12 @@ Resources:
     Tags:
       - Key: Name
         Value: Cloudformation-study-igw
-       
  AttachGateway: 
-  Type: AWS::EC2::VPCGatewayAttachment
-  Properties:
-   VpcId: !Ref myVPC
-   InternetGatewayId: !Ref myInternetGateway
-
+   Type: AWS::EC2::VPCGatewayAttachment
+   Properties:
+    VpcId: !Ref myVPC
+    InternetGatewayId: !Ref myInternetGateway    
+   
  PublicSubnetA:
   Type: AWS::EC2::Subnet
   Properties:
@@ -67,9 +63,7 @@ Resources:
     Tags:
     - Key: Name
       Value: Cloudformation-study-public-subnet-b
-
-  
-
+ 
  PublicRouteTable:
   Type: AWS::EC2::RouteTable
   Properties:
@@ -79,12 +73,12 @@ Resources:
       Value: Cloudformation-study-public-rt
 
  PublicRoute:
-  Type: AWS::EC2::Route
-  DependsOn: AttachGateway
-  Properties:
-   RouteTableId: !Ref PublicRouteTable
-   DestinationCidrBlock: 0.0.0.0/0
-   GatewayId: !Ref myInternetGateway
+   Type: AWS::EC2::Route
+   DependsOn: AttachGateway
+   Properties:
+    RouteTableId: !Ref PublicRouteTable
+    DestinationCidrBlock: 0.0.0.0/0
+    GatewayId: !Ref myInternetGateway
 
  PublicSubnetRouteTableAssociationA:
   Type: AWS::EC2::SubnetRouteTableAssociation
@@ -98,20 +92,24 @@ Resources:
    SubnetId: !Ref PublicSubnetB
    RouteTableId: !Ref PublicRouteTable
 
- secGroupEC2:
+
+
+
+ secGroupName1:
   Type: AWS::EC2::SecurityGroup
   Properties:
+    GroupName: EC2-sg
     GroupDescription: allow ssh
     VpcId: !Ref myVPC
     SecurityGroupIngress:
       - IpProtocol: tcp
         FromPort: 22
         ToPort: 22
-        CidrIp: 153.175.16.24/32
+        CidrIp: 0.0.0.0/0
       - IpProtocol: tcp
         FromPort: 8080
         ToPort: 8080
-        SourceSecurityGroupId: !Ref secGroupALB
+        SourceSecurityGroupId: !Ref secGroupName3
         Description: Allow 8080 from ALB SG
     SecurityGroupEgress:
       - IpProtocol: -1
@@ -121,16 +119,17 @@ Resources:
       - Key: Name
         Value: cloudformation-study-sg1
 
- secGroupRDS:
+ secGroupName2:
   Type: AWS::EC2::SecurityGroup
   Properties:
+    GroupName: Rds-sg
     GroupDescription: Allow MySQL 3306 from EC2 security group
     VpcId: !Ref myVPC
     SecurityGroupIngress:
       - IpProtocol: tcp
         FromPort: 3306
         ToPort: 3306
-        SourceSecurityGroupId: !Ref secGroupEC2
+        SourceSecurityGroupId: !Ref secGroupName1
         Description: Allow MySQL from EC2 SG
     SecurityGroupEgress:
       - IpProtocol: -1
@@ -139,10 +138,10 @@ Resources:
       - Key: Name
         Value: cloudformation-study-sg2
     
-   
- secGroupALB:
+ secGroupName3:
     Type: AWS::EC2::SecurityGroup
     Properties:
+     GroupName: Alb-sg
      VpcId: !Ref myVPC
      GroupDescription: ALB HTTP 80 only
      SecurityGroupIngress:
@@ -165,13 +164,13 @@ Resources:
     KeyName: !Ref KeyName
     Monitoring: true
     SecurityGroupIds: 
-     - !Ref secGroupEC2
-    SubnetId: !Ref PublicSubnetA
+     - !Ref secGroupName1
+    SubnetId: !Ref PrivateSubnetA
 
     Tags:
       - Key: Name
         Value: Cloudformation-study-ec2
-  
+
  PrivateSubnetA:
    Type: AWS::EC2::Subnet
    Properties:
@@ -187,24 +186,85 @@ Resources:
   Properties:
     VpcId: !Ref myVPC
     CidrBlock: 10.0.12.0/24
-    AvailabilityZone: !Select [1, !GetAZs '']
+    AvailabilityZone: !Select [0, !GetAZs '']
     Tags:
        - Key: Name
          Value: Cloudformation-study-private-subnet-B
 
+ PrivateSubnetC:
+  Type: AWS::EC2::Subnet
+  Properties:
+    VpcId: !Ref myVPC
+    CidrBlock: 10.0.13.0/24
+    AvailabilityZone: !Select [1, !GetAZs '']
+    Tags:
+       - Key: Name
+         Value: Cloudformation-study-private-subnet-C
+
+ NGW1EIP:
+  Type: AWS::EC2::EIP
+  Properties:
+    Domain: vpc
  
+ NatGateway:
+  Type: AWS::EC2::NatGateway
+  Properties:
+   SubnetId: !Ref PublicSubnetA
+   AllocationId: !GetAtt NGW1EIP.AllocationId
+   Tags:
+     - Key: Name
+       Value: Cloudformation-study-ngw-fromEC2
+
+ PrivateRouteTableName:
+   Type: AWS::EC2::RouteTable
+   Properties:
+     VpcId: !Ref myVPC
+     Tags: 
+       - Key: Name
+         Value: Cloudformation-study-private-rtn
+
+ PrivateRouteTable:
+   Type: AWS::EC2::Route
+   DependsOn: NatGateway
+   Properties:
+    RouteTableId: !Ref PrivateRouteTableName
+    DestinationCidrBlock: 0.0.0.0/0
+    NatGatewayId: !Ref NatGateway 
+  
+ PrivateSubnetARouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+     SubnetId: !Ref PrivateSubnetA
+     RouteTableId: !Ref PrivateRouteTableName
+ 
+ PrivateSubnetBRouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+     SubnetId: !Ref PrivateSubnetB
+     RouteTableId: !Ref PrivateRouteTableName
+
+ PrivateSubnetCRouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+     SubnetId: !Ref PrivateSubnetC
+     RouteTableId: !Ref PrivateRouteTableName
+
  RdsDBSubnetGroup:
     Type: AWS::RDS::DBSubnetGroup
     Properties:
       DBSubnetGroupDescription: RDS DB Subnet Group
       SubnetIds:
-        - !Ref PrivateSubnetA
         - !Ref PrivateSubnetB
+        - !Ref PrivateSubnetC
       Tags:
         - Key: Name
           Value: rds-db-subnet-group
+
  RDSInstance:
    Type: AWS::RDS::DBInstance
+   DependsOn:
+      - RdsDBSubnetGroup
+      - secGroupName2
    Properties:
     DBInstanceIdentifier: cloudformationstudyrds
     Engine: mysql
@@ -215,7 +275,7 @@ Resources:
     MasterUsername: admin
     MasterUserPassword: !Ref RdsMasterPassword
     VPCSecurityGroups:
-      - !Ref secGroupRDS
+      - !Ref secGroupName2 
     DBSubnetGroupName: !Ref RdsDBSubnetGroup
     AllocatedStorage: 20   
     MultiAZ: false
@@ -224,22 +284,23 @@ Resources:
     Tags:
       - Key: Name
         Value: Cloudformation-study-rds
+
  ALB:
-    Type: AWS::ElasticLoadBalancingV2::LoadBalancer
-    Properties:
-      Type: "application"
-      Scheme: "internet-facing"
-      Name:  cloudformation-study-alb
-      Tags:
+  Type: AWS::ElasticLoadBalancingV2::LoadBalancer
+  Properties:
+   Type: "application"
+   Scheme: "internet-facing"
+   Name:  cloudformation-study-alb
+
+   IpAddressType: ipv4
+   Subnets:
+      - !Ref PublicSubnetA
+      - !Ref PublicSubnetB
+   SecurityGroups:
+        - !Ref secGroupName3
+   Tags:
         - Key: Name
           Value: Cloudformation-study-alb
-      IpAddressType: ipv4
-      Subnets:
-        - !Ref PublicSubnetA
-        - !Ref PublicSubnetB
-       
-      SecurityGroups:
-        - !Ref secGroupALB
 
  ALBListener:
     Type: AWS::ElasticLoadBalancingV2::Listener
@@ -258,7 +319,7 @@ Resources:
       Port: 8080
       Protocol: HTTP
       Matcher:
-        HttpCode: '200'
+        HttpCode: '200,300,301' 
       VpcId: !Ref myVPC
       TargetType: instance
       Targets:
@@ -267,11 +328,6 @@ Resources:
       Tags:
         - Key: Name
           Value: cloudformation-study-alb-tg
-
-
- 
-
-
 
 Outputs:
  VPCId:
@@ -283,9 +339,6 @@ Outputs:
  EC2InstanceId:
   Description: EC2 Instance ID
   Value: !Ref myEC2Instance
- EC2PublicIP:
-  Description: EC2 Public IP
-  Value: !GetAtt myEC2Instance.PublicIp
  RdsEndpoint:
     Description: RDS endpoint address
     Value: !GetAtt RDSInstance.Endpoint.Address
@@ -298,3 +351,6 @@ Outputs:
         - ""
         - - http://
           - !GetAtt ALB.DNSName
+
+
+
