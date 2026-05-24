@@ -208,6 +208,7 @@ Resources:
    Properties:
     DBInstanceIdentifier: cloudformationstudyrds
     Engine: mysql
+    DBInstanceClass: db.t3.micro
     EngineVersion: "8.0"
     AvailabilityZone: !Select [0, !GetAZs '']
     DBName: CloudformationStudyRDS
