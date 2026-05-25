@@ -23,9 +23,7 @@ Parameters:
     Description: SNS topic ARN for CloudWatch Alarm notifications
  
 
-Resources:
- myVPC:
-  Type: AWS::EC2::VPC
+
   
 
 
@@ -299,6 +297,39 @@ Resources:
       OKActions:  
        - !Ref AlarmTopicArn
       Unit: Percent 
+ 
+ ALBWAF:    
+  Type: AWS::WAFv2::WebACL
+  Properties:
+   Name: ALBWAF
+   Scope: REGIONAL
+   DefaultAction:
+      Allow: {}                  
+   VisibilityConfig:
+      MetricName: ALBWAF
+      SampledRequestsEnabled: true
+      CloudWatchMetricsEnabled: true
+   Rules: 
+    - Name: AWS-AWSManagedRulesCommonRuleSet
+      Priority: 0
+      Statement:
+       ManagedRuleGroupStatement:
+        VendorName: AWS
+        Name: AWSManagedRulesCommonRuleSet
+      OverrideAction:
+       Count: {}
+      VisibilityConfig:
+       SampledRequestsEnabled: true
+       CloudWatchMetricsEnabled: true
+       MetricName: AWS-AWSManagedRulesCommonRuleSet
+      
+ WAFACLAssociation:
+  Type: 'AWS::WAFv2::WebACLAssociation'
+  Properties:
+    WebACLArn: !GetAtt ALBWAF.Arn
+    ResourceArn: !Ref ALB
+
+ 
       
  
 
