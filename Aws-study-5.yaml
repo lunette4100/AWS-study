@@ -280,7 +280,7 @@ Resources:
     Properties:
       MetricName: CPUUtilization 
       Namespace: AWS/EC2 
-      ComparisonOperator: GreaterThanThreshold 
+      ComparisonOperator: GreaterThanOrEqualToThreshold
       EvaluationPeriods: 1 
       Period: 60 
       Statistic: Average 
@@ -289,7 +289,7 @@ Resources:
       AlarmActions: 
        - !Ref AlarmTopicArn 
       AlarmDescription: check for EC2 to CPU 
-      AlarmName: Abnormal
+      AlarmName: CPU Abnomal
       Dimensions: 
       - Name: InstanceId
         Value: !Ref myEC2Instance 
@@ -316,19 +316,37 @@ Resources:
        ManagedRuleGroupStatement:
         VendorName: AWS
         Name: AWSManagedRulesCommonRuleSet
-      OverrideAction:
-       Count: {}
+      OverrideAction: { Count: {} }
       VisibilityConfig:
        SampledRequestsEnabled: true
        CloudWatchMetricsEnabled: true
        MetricName: AWS-AWSManagedRulesCommonRuleSet
-      
+
  WAFACLAssociation:
   Type: 'AWS::WAFv2::WebACLAssociation'
   Properties:
     WebACLArn: !GetAtt ALBWAF.Arn
     ResourceArn: !Ref ALB
 
+ 
+ 
+ CloudwatchlogsConfiguration:
+  Type: AWS::WAFv2::LoggingConfiguration
+  Properties:
+   LogDestinationConfigs: 
+    - !Sub arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:${CloudwatchLogsGroup}:*
+   ResourceArn: !GetAtt ALBWAF.Arn
+ 
+ CloudwatchLogsGroup:
+  Type: AWS::Logs::LogGroup
+  Properties:
+   DeletionProtectionEnabled: true
+   LogGroupClass: STANDARD
+   LogGroupName: aws-waf-logs-cloudformation
+   RetentionInDays: 3
+   Tags: 
+    - Key: Name
+      Value: aws-waf-logs-cloudformation
  
       
  
