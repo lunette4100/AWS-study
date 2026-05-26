@@ -20,11 +20,13 @@ Parameters:
     Description: RDS master user password
  AlarmTopicArn:
     Type: String
+    Default: ""
     Description: SNS topic ARN for CloudWatch Alarm notifications
  
 
+Conditions:
+ co-AlarmTopicArn: !Not [!Equals [!Ref AlarmTopicArn, ""] ]
 
-  
 
 
 
@@ -286,16 +288,20 @@ Resources:
       Statistic: Average 
       Threshold: 50 
       ActionsEnabled: true 
-      AlarmActions: 
-       - !Ref AlarmTopicArn 
+      AlarmActions: !If 
+       - co-AlarmTopicArn
+       - - !Ref AlarmTopicArn
+       - !Ref AWS::NoValue
       AlarmDescription: check for EC2 to CPU 
       AlarmName: CPU Abnomal
       Dimensions: 
       - Name: InstanceId
         Value: !Ref myEC2Instance 
       InsufficientDataActions: [] 
-      OKActions:  
-       - !Ref AlarmTopicArn
+      OKActions: !If 
+       - co-AlarmTopicArn
+       - - !Ref AlarmTopicArn
+       - !Ref AWS::NoValue
       Unit: Percent 
  
  ALBWAF:    
@@ -326,7 +332,7 @@ Resources:
   Type: 'AWS::WAFv2::WebACLAssociation'
   Properties:
     WebACLArn: !GetAtt ALBWAF.Arn
-    ResourceArn: !Ref ALB
+    ResourceArn: !GetAtt ALB.LoadBalancerArn
 
  
  
