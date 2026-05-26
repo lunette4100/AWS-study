@@ -18,7 +18,15 @@ Parameters:
     Type: String
     NoEcho: true
     Description: RDS master user password
-  
+ AlarmTopicArn:
+    Type: String
+    Default: ""
+    Description: SNS topic ARN for CloudWatch Alarm notifications
+ 
+
+Conditions:
+ co-AlarmTopicArn: !Not [!Equals [!Ref AlarmTopicArn, ""] ]
+
 
 
 
@@ -107,7 +115,7 @@ Resources:
       - IpProtocol: tcp
         FromPort: 22
         ToPort: 22
-        CidrIp: 153.175.16.24/32
+        CidrIp: 153.165.123.142/32
       - IpProtocol: tcp
         FromPort: 8080
         ToPort: 8080
@@ -269,7 +277,84 @@ Resources:
         - Key: Name
           Value: cloudformation-study-alb-tg
 
+ cloudWatchAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      MetricName: CPUUtilization 
+      Namespace: AWS/EC2 
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      EvaluationPeriods: 1 
+      Period: 60 
+      Statistic: Average 
+      Threshold: 50 
+      ActionsEnabled: true 
+      AlarmActions: !If 
+       - co-AlarmTopicArn
+       - - !Ref AlarmTopicArn
+       - !Ref AWS::NoValue
+      AlarmDescription: check for EC2 to CPU 
+      AlarmName: CPU Abnomal
+      Dimensions: 
+      - Name: InstanceId
+        Value: !Ref myEC2Instance 
+      InsufficientDataActions: [] 
+      OKActions: !If 
+       - co-AlarmTopicArn
+       - - !Ref AlarmTopicArn
+       - !Ref AWS::NoValue
+      Unit: Percent 
+ 
+ ALBWAF:    
+  Type: AWS::WAFv2::WebACL
+  Properties:
+   Name: ALBWAF
+   Scope: REGIONAL
+   DefaultAction:
+      Allow: {}                  
+   VisibilityConfig:
+      MetricName: ALBWAF
+      SampledRequestsEnabled: true
+      CloudWatchMetricsEnabled: true
+   Rules: 
+    - Name: AWS-AWSManagedRulesCommonRuleSet
+      Priority: 0
+      Statement:
+       ManagedRuleGroupStatement:
+        VendorName: AWS
+        Name: AWSManagedRulesCommonRuleSet
+      OverrideAction: { Count: {} }
+      VisibilityConfig:
+       SampledRequestsEnabled: true
+       CloudWatchMetricsEnabled: true
+       MetricName: AWS-AWSManagedRulesCommonRuleSet
 
+ WAFACLAssociation:
+  Type: 'AWS::WAFv2::WebACLAssociation'
+  Properties:
+    WebACLArn: !GetAtt ALBWAF.Arn
+    ResourceArn: !GetAtt ALB.LoadBalancerArn
+
+ 
+ 
+ CloudwatchlogsConfiguration:
+  Type: AWS::WAFv2::LoggingConfiguration
+  Properties:
+   LogDestinationConfigs: 
+    - !Sub arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:${CloudwatchLogsGroup}:*
+   ResourceArn: !GetAtt ALBWAF.Arn
+ 
+ CloudwatchLogsGroup:
+  Type: AWS::Logs::LogGroup
+  Properties:
+   DeletionProtectionEnabled: true
+   LogGroupClass: STANDARD
+   LogGroupName: aws-waf-logs-cloudformation
+   RetentionInDays: 3
+   Tags: 
+    - Key: Name
+      Value: aws-waf-logs-cloudformation
+ 
+      
  
 
 
